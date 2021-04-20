@@ -5,10 +5,9 @@ use rand::FromEntropy;
 use std::collections::HashMap;
 use std::env;
 use std::error::Error;
+use std::fs;
 use std::sync::{Arc, Mutex};
 use teloxide::{prelude::*, utils::command::BotCommand};
-
-const EMOJIS: [char; 3] = ['😘', '🤗', '🦀'];
 
 #[derive(BotCommand)]
 #[command(rename = "lowercase", description = "These commands are supported:")]
@@ -25,6 +24,8 @@ type Username = String;
 
 lazy_static::lazy_static! {
     static ref USER_EMOJIS: Arc<Mutex<HashMap<Username, Vec<char>>>> = Arc::new(Mutex::new(HashMap::new()));
+    static ref EMOJI_FILE: String = fs::read_to_string("emojis.csv").unwrap();
+    static ref EMOJIS: Vec<&'static str> = EMOJI_FILE.trim().split('\n').collect();
 }
 
 async fn answer(
