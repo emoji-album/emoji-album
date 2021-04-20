@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::env;
 use std::error::Error;
 use std::fs;
+use std::string::ToString;
 use std::sync::{Arc, Mutex};
 use teloxide::{prelude::*, utils::command::BotCommand};
 
@@ -14,8 +15,8 @@ use teloxide::{prelude::*, utils::command::BotCommand};
 enum Command {
     #[command(description = "display this text.")]
     Help,
-    #[command(description = "rewards with a random emoji.")]
-    Reward,
+    #[command(description = "rolls 5 random emojis.")]
+    Roll,
     #[command(description = "handle a username and an age.", parse_with = "split")]
     UsernameAndAge { username: String, age: u8 },
 }
@@ -34,12 +35,17 @@ async fn answer(
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     match command {
         Command::Help => cx.answer(Command::descriptions()).send().await?,
-        Command::Reward => {
+        Command::Roll => {
             let mut rng = StdRng::from_entropy();
 
-            let random_emoji = EMOJIS.iter().choose(&mut rng).unwrap();
+            let random_emojis: Vec<String> = EMOJIS
+                .iter()
+                .choose_multiple(&mut rng, 5)
+                .into_iter()
+                .map(ToString::to_string)
+                .collect();
 
-            cx.answer(format!("Here's a random emoji: {}", random_emoji))
+            cx.answer(format!("You have rolled: {}", random_emojis.join("")))
                 .await?
         }
         Command::UsernameAndAge { username, age } => {
