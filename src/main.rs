@@ -45,6 +45,21 @@ fn add_emojis_to_album(album: UserId, emojis: &Vec<Emoji>) {
     }
 }
 
+fn render_emoji_album(emojis_map: &HashMap<Emoji, Quantity>) -> String {
+    emojis_map
+        .iter()
+        .map(|(emoji, quantity)| {
+            std::iter::repeat(emoji.to_owned())
+                .take(*quantity)
+                .collect::<String>()
+        })
+        .map(|mut same_emoji_line| {
+            same_emoji_line.push_str("   ");
+            same_emoji_line
+        })
+        .collect()
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     dotenv().ok();
@@ -76,6 +91,30 @@ async fn main() -> Result<(), Error> {
                                 .text(format!("You have rolled: {}", rolled_emojis.join(""))),
                         )
                         .await?;
+                    }
+                    "/emojis" => {
+                        let lock = USERS_EMOJIS.lock().unwrap();
+
+                        match lock.get(&message.from.id.to_string()) {
+                            Some(emojis_map) => {
+                                let emoji_album = render_emoji_album(emojis_map);
+
+                                api.send(
+                                    message
+                                        .chat
+                                        .text(format!("Your emojis:\n\n{}", emoji_album)),
+                                )
+                                .await?;
+                            }
+                            None => {
+                                api.send(
+                                    message
+                                        .chat
+                                        .text("You still have no emojis! Type /roll to get some!"),
+                                )
+                                .await?;
+                            }
+                        }
                     }
                     _ => println!("no match"),
                 };
