@@ -4,22 +4,12 @@ use rand::seq::IteratorRandom;
 use rand::FromEntropy;
 use std::collections::HashMap;
 use std::env;
-use std::error::Error;
 use std::fs;
 use std::string::ToString;
 use std::sync::{Arc, Mutex};
-use teloxide::{prelude::*, utils::command::BotCommand};
 
-#[derive(BotCommand)]
-#[command(rename = "lowercase", description = "These commands are supported:")]
-enum Command {
-    #[command(description = "display this text.")]
-    Help,
-    #[command(description = "rolls 5 random emojis.")]
-    Roll,
-    #[command(description = "handle a username and an age.", parse_with = "split")]
-    UsernameAndAge { username: String, age: u8 },
-}
+use futures::StreamExt;
+use telegram_bot::{Api, CanSendMessage, Error, MessageKind, UpdateKind};
 
 type Username = String;
 
@@ -29,46 +19,46 @@ lazy_static::lazy_static! {
     static ref EMOJIS: Vec<&'static str> = EMOJI_FILE.trim().split('\n').collect();
 }
 
-async fn answer(
-    cx: UpdateWithCx<AutoSend<Bot>, Message>,
-    command: Command,
-) -> Result<(), Box<dyn Error + Send + Sync>> {
-    match command {
-        Command::Help => cx.answer(Command::descriptions()).send().await?,
-        Command::Roll => {
-            let mut rng = StdRng::from_entropy();
+fn roll() -> String {
+    let mut rng = StdRng::from_entropy();
 
-            let random_emojis: Vec<String> = EMOJIS
-                .iter()
-                .choose_multiple(&mut rng, 5)
-                .into_iter()
-                .map(ToString::to_string)
-                .collect();
+    let random_emojis: Vec<String> = EMOJIS
+        .iter()
+        .choose_multiple(&mut rng, 5)
+        .into_iter()
+        .map(ToString::to_string)
+        .collect();
 
-            cx.answer(format!("You have rolled: {}", random_emojis.join("")))
-                .await?
-        }
-        Command::UsernameAndAge { username, age } => {
-            cx.answer(format!(
-                "Your username is @{} and age is {}.",
-                username, age
-            ))
-            .await?
-        }
-    };
-
-    Ok(())
+    random_emojis.join("")
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Error> {
     dotenv().ok();
 
-    teloxide::enable_logging!();
-    log::info!("Starting dices_bot...");
+    let token = env::var("TELEGRAM_BOT_TOKEN").expect("TELEGRAM_BOT_TOKEN not set");
 
-    let bot = Bot::from_env().auto_send();
+    let api = Api::new(token);
 
-    let bot_name = "Emoji Album Bot";
-    teloxide::commands_repl(bot, bot_name, answer).await;
+    let mut stream = api.stream();
+
+    while let Some(update) = stream.next().await {
+        let update = update?;
+
+        if let UpdateKind::Message(message) = update.kind {
+            if let MessageKind::Text { ref data, .. } = message.kind {
+                println!("<{}>: {}", &message.from.id, data);
+
+                match &data[..] {
+                    "/roll" => {
+                        api.send(message.chat.text(format!("You have rolled: {}", roll())))
+                            .await?;
+                    }
+                    _ => println!("no match"),
+                };
+            }
+        }
+    }
+
+    Ok(())
 }
