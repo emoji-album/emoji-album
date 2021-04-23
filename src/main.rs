@@ -54,9 +54,14 @@ impl Command {
         add_emojis_to_album(user_id, &rolled_emojis);
 
         api.send(
-            message
-                .chat
-                .text(format!("You have rolled: {}", rolled_emojis.join(""))),
+            message.chat.text(format!(
+                "You have rolled: {}",
+                rolled_emojis
+                    .into_iter()
+                    .rev()
+                    .collect::<Vec<String>>()
+                    .join("")
+            )),
         )
         .await?;
 
@@ -117,6 +122,7 @@ fn add_emojis_to_album(album: UserId, emojis: &Vec<Emoji>) {
 fn render_emoji_album(emojis_map: &IndexMap<Emoji, Quantity>) -> String {
     emojis_map
         .iter()
+        .rev()
         .map(|(emoji, quantity)| {
             std::iter::repeat(emoji.to_owned())
                 .take(*quantity)
