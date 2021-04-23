@@ -36,6 +36,51 @@ impl Command {
             _ => panic!("message could not be parsed to command"),
         }
     }
+
+    async fn execute(self, api: &Api, message: &Message) -> Result<(), Error> {
+        match self {
+            Command::Roll => {
+                let rolled_emojis = roll();
+
+                let user_id = message.from.id.to_string();
+
+                add_emojis_to_album(user_id, &rolled_emojis);
+
+                api.send(
+                    message
+                        .chat
+                        .text(format!("You have rolled: {}", rolled_emojis.join(""))),
+                )
+                .await
+            }
+            Command::Emojis => {
+                let lock = USERS_EMOJIS.lock().unwrap();
+
+                match lock.get(&message.from.id.to_string()) {
+                    Some(emojis_map) => {
+                        let emoji_album = render_emoji_album(emojis_map);
+
+                        api.send(
+                            message
+                                .chat
+                                .text(format!("Your emojis:\n\n{}", emoji_album)),
+                        )
+                        .await
+                    }
+                    None => {
+                        api.send(
+                            message
+                                .chat
+                                .text("You still have no emojis! Type /roll to get some!"),
+                        )
+                        .await
+                    }
+                }
+            }
+        }?;
+
+        Ok(())
+    }
 }
 
 fn roll() -> Vec<Emoji> {
@@ -80,46 +125,9 @@ async fn handle_message(api: &Api, message: &Message) -> Result<(), Error> {
     if let MessageKind::Text { ref data, .. } = message.kind {
         println!("<{}>: {}", &message.from.id, data);
 
-        match Command::from_message(&data[..]) {
-            Command::Roll => {
-                let rolled_emojis = roll();
-
-                let user_id = message.from.id.to_string();
-
-                add_emojis_to_album(user_id, &rolled_emojis);
-
-                api.send(
-                    message
-                        .chat
-                        .text(format!("You have rolled: {}", rolled_emojis.join(""))),
-                )
-                .await
-            }
-            Command::Emojis => {
-                let lock = USERS_EMOJIS.lock().unwrap();
-
-                match lock.get(&message.from.id.to_string()) {
-                    Some(emojis_map) => {
-                        let emoji_album = render_emoji_album(emojis_map);
-
-                        api.send(
-                            message
-                                .chat
-                                .text(format!("Your emojis:\n\n{}", emoji_album)),
-                        )
-                        .await
-                    }
-                    None => {
-                        api.send(
-                            message
-                                .chat
-                                .text("You still have no emojis! Type /roll to get some!"),
-                        )
-                        .await
-                    }
-                }
-            }
-        }?;
+        Command::from_message(&data[..])
+            .execute(&api, message)
+            .await?;
     };
 
     Ok(())
