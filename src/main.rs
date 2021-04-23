@@ -10,7 +10,7 @@ use std::string::ToString;
 use std::sync::{Arc, Mutex};
 
 use futures::StreamExt;
-use telegram_bot::{Api, CanSendMessage, Error, MessageKind, UpdateKind};
+use telegram_bot::{Api, CanSendMessage, Error, Message, MessageKind, UpdateKind};
 
 type UserId = String;
 type Emoji = String;
@@ -21,6 +21,21 @@ lazy_static::lazy_static! {
 
     static ref EMOJI_FILE: String = fs::read_to_string("emojis.csv").unwrap();
     static ref EMOJIS: Vec<&'static str> = EMOJI_FILE.trim().split('\n').collect();
+}
+
+enum Command {
+    Roll,
+    Emojis,
+}
+
+impl Command {
+    fn from_message(message: &str) -> Self {
+        match message {
+            "/roll" => Self::Roll,
+            "/emojis" => Self::Emojis,
+            _ => panic!("message could not be parsed to command"),
+        }
+    }
 }
 
 fn roll() -> Vec<Emoji> {
@@ -61,6 +76,55 @@ fn render_emoji_album(emojis_map: &IndexMap<Emoji, Quantity>) -> String {
         .collect()
 }
 
+async fn handle_message(api: &Api, message: &Message) -> Result<(), Error> {
+    if let MessageKind::Text { ref data, .. } = message.kind {
+        println!("<{}>: {}", &message.from.id, data);
+
+        match Command::from_message(&data[..]) {
+            Command::Roll => {
+                let rolled_emojis = roll();
+
+                let user_id = message.from.id.to_string();
+
+                add_emojis_to_album(user_id, &rolled_emojis);
+
+                api.send(
+                    message
+                        .chat
+                        .text(format!("You have rolled: {}", rolled_emojis.join(""))),
+                )
+                .await
+            }
+            Command::Emojis => {
+                let lock = USERS_EMOJIS.lock().unwrap();
+
+                match lock.get(&message.from.id.to_string()) {
+                    Some(emojis_map) => {
+                        let emoji_album = render_emoji_album(emojis_map);
+
+                        api.send(
+                            message
+                                .chat
+                                .text(format!("Your emojis:\n\n{}", emoji_album)),
+                        )
+                        .await
+                    }
+                    None => {
+                        api.send(
+                            message
+                                .chat
+                                .text("You still have no emojis! Type /roll to get some!"),
+                        )
+                        .await
+                    }
+                }
+            }
+        }?;
+    };
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     dotenv().ok();
@@ -75,51 +139,7 @@ async fn main() -> Result<(), Error> {
         let update = update?;
 
         if let UpdateKind::Message(message) = update.kind {
-            if let MessageKind::Text { ref data, .. } = message.kind {
-                println!("<{}>: {}", &message.from.id, data);
-
-                match &data[..] {
-                    "/roll" => {
-                        let rolled_emojis = roll();
-
-                        let user_id = message.from.id.to_string();
-
-                        add_emojis_to_album(user_id, &rolled_emojis);
-
-                        api.send(
-                            message
-                                .chat
-                                .text(format!("You have rolled: {}", rolled_emojis.join(""))),
-                        )
-                        .await?;
-                    }
-                    "/emojis" => {
-                        let lock = USERS_EMOJIS.lock().unwrap();
-
-                        match lock.get(&message.from.id.to_string()) {
-                            Some(emojis_map) => {
-                                let emoji_album = render_emoji_album(emojis_map);
-
-                                api.send(
-                                    message
-                                        .chat
-                                        .text(format!("Your emojis:\n\n{}", emoji_album)),
-                                )
-                                .await?;
-                            }
-                            None => {
-                                api.send(
-                                    message
-                                        .chat
-                                        .text("You still have no emojis! Type /roll to get some!"),
-                                )
-                                .await?;
-                            }
-                        }
-                    }
-                    _ => println!("no match"),
-                };
-            }
+            handle_message(&api, &message).await?;
         }
     }
 
