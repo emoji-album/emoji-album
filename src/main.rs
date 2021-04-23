@@ -39,51 +39,59 @@ impl Command {
 
     async fn execute(self, api: &Api, message: &Message) -> Result<(), Error> {
         match self {
-            Command::Roll => {
-                let rolled_emojis = roll();
+            Command::Roll => self.roll(api, message).await,
+            Command::Emojis => self.emojis(api, message).await,
+        }?;
 
-                let user_id = message.from.id.to_string();
+        Ok(())
+    }
 
-                add_emojis_to_album(user_id, &rolled_emojis);
+    async fn roll(&self, api: &Api, message: &Message) -> Result<(), Error> {
+        let rolled_emojis = generate_random_emojis();
+
+        let user_id = message.from.id.to_string();
+
+        add_emojis_to_album(user_id, &rolled_emojis);
+
+        api.send(
+            message
+                .chat
+                .text(format!("You have rolled: {}", rolled_emojis.join(""))),
+        )
+        .await?;
+
+        Ok(())
+    }
+
+    async fn emojis(&self, api: &Api, message: &Message) -> Result<(), Error> {
+        let lock = USERS_EMOJIS.lock().unwrap();
+
+        match lock.get(&message.from.id.to_string()) {
+            Some(emojis_map) => {
+                let emoji_album = render_emoji_album(emojis_map);
 
                 api.send(
                     message
                         .chat
-                        .text(format!("You have rolled: {}", rolled_emojis.join(""))),
+                        .text(format!("Your emojis:\n\n{}", emoji_album)),
                 )
-                .await
+                .await?;
             }
-            Command::Emojis => {
-                let lock = USERS_EMOJIS.lock().unwrap();
-
-                match lock.get(&message.from.id.to_string()) {
-                    Some(emojis_map) => {
-                        let emoji_album = render_emoji_album(emojis_map);
-
-                        api.send(
-                            message
-                                .chat
-                                .text(format!("Your emojis:\n\n{}", emoji_album)),
-                        )
-                        .await
-                    }
-                    None => {
-                        api.send(
-                            message
-                                .chat
-                                .text("You still have no emojis! Type /roll to get some!"),
-                        )
-                        .await
-                    }
-                }
+            None => {
+                api.send(
+                    message
+                        .chat
+                        .text("You still have no emojis! Type /roll to get some!"),
+                )
+                .await?;
             }
-        }?;
+        };
 
         Ok(())
     }
 }
 
-fn roll() -> Vec<Emoji> {
+fn generate_random_emojis() -> Vec<Emoji> {
     let mut rng = StdRng::from_entropy();
 
     let random_emojis: Vec<String> = EMOJIS
