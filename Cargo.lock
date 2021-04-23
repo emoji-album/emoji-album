@@ -85,6 +85,7 @@ version = "0.1.0"
 dependencies = [
  "dotenv",
  "futures",
+ "indexmap",
  "lazy_static",
  "rand 0.6.5",
  "telegram-bot",

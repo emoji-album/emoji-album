@@ -1,4 +1,5 @@
 use dotenv::dotenv;
+use indexmap::IndexMap;
 use rand::rngs::StdRng;
 use rand::seq::IteratorRandom;
 use rand::FromEntropy;
@@ -16,7 +17,7 @@ type Emoji = String;
 type Quantity = usize;
 
 lazy_static::lazy_static! {
-    static ref USERS_EMOJIS: Arc<Mutex<HashMap<UserId, HashMap<Emoji, Quantity>>>> = Arc::new(Mutex::new(HashMap::new()));
+    static ref USERS_EMOJIS: Arc<Mutex<HashMap<UserId, IndexMap<Emoji, Quantity>>>> = Arc::new(Mutex::new(HashMap::new()));
 
     static ref EMOJI_FILE: String = fs::read_to_string("emojis.csv").unwrap();
     static ref EMOJIS: Vec<&'static str> = EMOJI_FILE.trim().split('\n').collect();
@@ -37,7 +38,7 @@ fn roll() -> Vec<Emoji> {
 
 fn add_emojis_to_album(album: UserId, emojis: &Vec<Emoji>) {
     let mut lock = USERS_EMOJIS.lock().unwrap();
-    let user_emojis = lock.entry(album).or_insert(HashMap::new());
+    let user_emojis = lock.entry(album).or_insert(IndexMap::new());
 
     for emoji in emojis {
         let quantity = user_emojis.entry(emoji.to_owned()).or_insert(0);
@@ -45,7 +46,7 @@ fn add_emojis_to_album(album: UserId, emojis: &Vec<Emoji>) {
     }
 }
 
-fn render_emoji_album(emojis_map: &HashMap<Emoji, Quantity>) -> String {
+fn render_emoji_album(emojis_map: &IndexMap<Emoji, Quantity>) -> String {
     emojis_map
         .iter()
         .map(|(emoji, quantity)| {
