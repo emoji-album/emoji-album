@@ -25,6 +25,7 @@ lazy_static::lazy_static! {
 }
 
 enum Command {
+    Start,
     Roll,
     Emojis,
     Send(Emoji, Quantity, Username),
@@ -34,11 +35,19 @@ impl TryFrom<&str> for Command {
     type Error = &'static str;
 
     fn try_from(message: &str) -> Result<Self, Self::Error> {
+        if message.starts_with("/start") {
+            return Ok(Self::Start);
+        }
+
         if message.starts_with("/roll") {
             return Ok(Self::Roll);
         }
 
         if message.starts_with("/emojis") {
+            return Ok(Self::Emojis);
+        }
+
+        if message.starts_with("/album") {
             return Ok(Self::Emojis);
         }
 
@@ -49,7 +58,11 @@ impl TryFrom<&str> for Command {
             // 1. needs error handling on the `@` of the string,
             // right now it doesn't check, it just removes;
             // 2. needs to remove hardcoded `1` in Quantity.
-            return Ok(Self::Send(params[0].to_string(), 1, params[1][1..].to_string()));
+            return Ok(Self::Send(
+                params[0].to_string(),
+                1,
+                params[1][1..].to_string(),
+            ));
         }
 
         Err("no match")
@@ -59,6 +72,7 @@ impl TryFrom<&str> for Command {
 impl Command {
     async fn execute(self, api: &Api, message: &Message) -> Result<(), Error> {
         match self {
+            Command::Start => self.start(api, message).await,
             Command::Roll => self.roll(api, message).await,
             Command::Emojis => self.emojis(api, message).await,
             Command::Send(ref emoji, quantity, ref username) => {
@@ -77,6 +91,15 @@ impl Command {
         Ok(())
     }
 
+    async fn start(&self, api: &Api, message: &Message) -> Result<(), Error> {
+        api.send(message.chat.text(
+                "Welcome to emoji album!\n\n🎲 Send /roll to get your first emojis!\n\n📖 Send /album to see all your emojis!"
+            ))
+        .await?;
+
+        Ok(())
+    }
+
     async fn roll(&self, api: &Api, message: &Message) -> Result<(), Error> {
         let rolled_emojis = generate_random_emojis();
 
@@ -85,12 +108,12 @@ impl Command {
         add_emojis_to_album(username, &rolled_emojis);
 
         api.send(message.chat.text(format!(
-                "You have rolled: {}",
+                "You have rolled:\n\n {} \n\nSend /album to see all your emojis!",
                 rolled_emojis
                     .into_iter()
                     .rev()
                     .collect::<Vec<String>>()
-                    .join("")
+                    .join(" ")
             )))
         .await?;
 
@@ -104,18 +127,17 @@ impl Command {
             Some(emojis_map) => {
                 let emoji_album = render_emoji_album(emojis_map);
 
-                api.send(
-                    message
-                        .chat
-                        .text(format!("Your emojis:\n\n{}", emoji_album)),
-                )
+                api.send(message.chat.text(format!(
+                    "Your album:\n\n{}\n\nSend /roll to get more emojis",
+                    emoji_album
+                )))
                 .await?;
             }
             None => {
                 api.send(
                     message
                         .chat
-                        .text("You still have no emojis! Type /roll to get some!"),
+                        .text("You still have no emojis in your album! Type /roll to get some!"),
                 )
                 .await?;
             }
@@ -153,14 +175,10 @@ impl Command {
 
         (*quantity_to) += 1;
 
-        api.send(
-            message
-                .chat
-                .text(format!(
-                    "You have succefuly sent {} {} to @{}!",
-                    quantity, emoji, to
-                )),
-        )
+        api.send(message.chat.text(format!(
+            "You have succefuly sent {} {} to @{}!",
+            quantity, emoji, to
+        )))
         .await?;
 
         Ok(())
@@ -200,7 +218,7 @@ fn render_emoji_album(emojis_map: &IndexMap<Emoji, Quantity>) -> String {
                 .collect::<String>()
         })
         .map(|mut same_emoji_line| {
-            same_emoji_line.push_str("   ");
+            same_emoji_line.push_str(" ");
             same_emoji_line
         })
         .collect()
