@@ -12,12 +12,12 @@ use std::sync::{Arc, Mutex};
 use futures::StreamExt;
 use telegram_bot::{Api, CanSendMessage, Error, Message, MessageKind, UpdateKind};
 
-type UserId = String;
+type Username = String;
 type Emoji = String;
 type Quantity = usize;
 
 lazy_static::lazy_static! {
-    static ref USERS_EMOJIS: Arc<Mutex<HashMap<UserId, IndexMap<Emoji, Quantity>>>> = Arc::new(Mutex::new(HashMap::new()));
+    static ref USERS_EMOJIS: Arc<Mutex<HashMap<Username, IndexMap<Emoji, Quantity>>>> = Arc::new(Mutex::new(HashMap::new()));
 
     static ref EMOJI_FILE: String = fs::read_to_string("emojis.csv").unwrap();
     static ref EMOJIS: Vec<&'static str> = EMOJI_FILE.trim().split('\n').collect();
@@ -30,11 +30,15 @@ enum Command {
 
 impl Command {
     fn from_message(message: &str) -> Self {
-        match message {
-            "/roll" => Self::Roll,
-            "/emojis" => Self::Emojis,
-            _ => panic!("message could not be parsed to command"),
+        if message.starts_with("/roll") {
+            return Self::Roll;
         }
+
+        if message.starts_with("/emojis") {
+            return Self::Emojis;
+        }
+
+        panic!("message could not be parsed to command")
     }
 
     async fn execute(self, api: &Api, message: &Message) -> Result<(), Error> {
@@ -49,20 +53,18 @@ impl Command {
     async fn roll(&self, api: &Api, message: &Message) -> Result<(), Error> {
         let rolled_emojis = generate_random_emojis();
 
-        let user_id = message.from.id.to_string();
+        let username = message.from.username.as_ref().unwrap().to_owned();
 
-        add_emojis_to_album(user_id, &rolled_emojis);
+        add_emojis_to_album(username, &rolled_emojis);
 
-        api.send(
-            message.chat.text(format!(
+        api.send(message.chat.text(format!(
                 "You have rolled: {}",
                 rolled_emojis
                     .into_iter()
                     .rev()
                     .collect::<Vec<String>>()
                     .join("")
-            )),
-        )
+            )))
         .await?;
 
         Ok(())
@@ -71,7 +73,7 @@ impl Command {
     async fn emojis(&self, api: &Api, message: &Message) -> Result<(), Error> {
         let lock = USERS_EMOJIS.lock().unwrap();
 
-        match lock.get(&message.from.id.to_string()) {
+        match lock.get(&message.from.username.as_ref().unwrap().to_string()) {
             Some(emojis_map) => {
                 let emoji_album = render_emoji_album(emojis_map);
 
@@ -109,7 +111,7 @@ fn generate_random_emojis() -> Vec<Emoji> {
     random_emojis
 }
 
-fn add_emojis_to_album(album: UserId, emojis: &Vec<Emoji>) {
+fn add_emojis_to_album(album: Username, emojis: &Vec<Emoji>) {
     let mut lock = USERS_EMOJIS.lock().unwrap();
     let user_emojis = lock.entry(album).or_insert(IndexMap::new());
 
@@ -137,7 +139,7 @@ fn render_emoji_album(emojis_map: &IndexMap<Emoji, Quantity>) -> String {
 
 async fn handle_message(api: &Api, message: &Message) -> Result<(), Error> {
     if let MessageKind::Text { ref data, .. } = message.kind {
-        println!("<{}>: {}", &message.from.id, data);
+        println!("<{:?}>: {}", &message.from.username, data);
 
         Command::from_message(&data[..])
             .execute(&api, message)
