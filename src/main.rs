@@ -4,6 +4,7 @@ use rand::rngs::StdRng;
 use rand::seq::IteratorRandom;
 use rand::FromEntropy;
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::env;
 use std::fs;
 use std::string::ToString;
@@ -28,19 +29,23 @@ enum Command {
     Emojis,
 }
 
-impl Command {
-    fn from_message(message: &str) -> Self {
+impl TryFrom<&str> for Command {
+    type Error = &'static str;
+
+    fn try_from(message: &str) -> Result<Self, Self::Error> {
         if message.starts_with("/roll") {
-            return Self::Roll;
+            return Ok(Self::Roll);
         }
 
         if message.starts_with("/emojis") {
-            return Self::Emojis;
+            return Ok(Self::Emojis);
         }
 
-        panic!("message could not be parsed to command")
+        Err("no match")
     }
+}
 
+impl Command {
     async fn execute(self, api: &Api, message: &Message) -> Result<(), Error> {
         match self {
             Command::Roll => self.roll(api, message).await,
@@ -141,9 +146,10 @@ async fn handle_message(api: &Api, message: &Message) -> Result<(), Error> {
     if let MessageKind::Text { ref data, .. } = message.kind {
         println!("<{:?}>: {}", &message.from.username, data);
 
-        Command::from_message(&data[..])
-            .execute(&api, message)
-            .await?;
+        match Command::try_from(&data[..]) {
+            Ok(command) => command.execute(&api, message).await?,
+            Err(error_msg) => println!("{}", error_msg),
+        }
     };
 
     Ok(())
