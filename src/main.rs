@@ -230,9 +230,11 @@ async fn main() -> Result<(), Error> {
     let mut stream = api.stream();
 
     while let Some(update) = stream.next().await {
+        // TODO: ignore errors
         let update = update?;
 
         if let UpdateKind::Message(message) = update.kind {
+            // TODO: ignore errors
             handle_message(&api, &message).await?;
         }
     }
