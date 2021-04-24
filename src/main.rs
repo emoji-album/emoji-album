@@ -108,7 +108,7 @@ impl Command {
         add_emojis_to_album(username, &rolled_emojis);
 
         api.send(message.chat.text(format!(
-                "You have rolled:\n\n {} \n\nSend /album to see all your emojis!",
+                "You have rolled:\n\n{}\n\nSend /album to see all your emojis!",
                 rolled_emojis
                     .into_iter()
                     .rev()
