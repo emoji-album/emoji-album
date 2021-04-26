@@ -27,7 +27,7 @@ lazy_static::lazy_static! {
 enum Command {
     Start,
     Roll,
-    Emojis,
+    Album,
     Send(Emoji, Quantity, Username),
 }
 
@@ -43,12 +43,8 @@ impl TryFrom<&str> for Command {
             return Ok(Self::Roll);
         }
 
-        if message.starts_with("/emojis") {
-            return Ok(Self::Emojis);
-        }
-
         if message.starts_with("/album") {
-            return Ok(Self::Emojis);
+            return Ok(Self::Album);
         }
 
         if message.starts_with("/send") {
@@ -74,7 +70,7 @@ impl Command {
         match self {
             Command::Start => self.start(api, message).await,
             Command::Roll => self.roll(api, message).await,
-            Command::Emojis => self.emojis(api, message).await,
+            Command::Album => self.album(api, message).await,
             Command::Send(ref emoji, quantity, ref username) => {
                 self.send(
                     api,
@@ -120,7 +116,7 @@ impl Command {
         Ok(())
     }
 
-    async fn emojis(&self, api: &Api, message: &Message) -> Result<(), Error> {
+    async fn album(&self, api: &Api, message: &Message) -> Result<(), Error> {
         let lock = USERS_EMOJIS.lock().unwrap();
 
         match lock.get(&message.from.username.as_ref().unwrap().to_string()) {
