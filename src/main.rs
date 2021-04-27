@@ -28,11 +28,11 @@ lazy_static::lazy_static! {
 
 fn parse_username(text: &str) -> Result<String, &'static str> {
     if text.is_empty() {
-        return Err("Username shouldn't be empty");
+        return Err("/send username cannot be empty. To send emojis to someone follow the format: `/send QUANTITY EMOJI @USERNAME`");
     }
 
     if text.chars().nth(0).unwrap() != '@' {
-        return Err("Username should start with `@`");
+        return Err("/send username must start with @. To send emojis to someone follow the format: `/send QUANTITY EMOJI @USERNAME`");
     }
 
     Ok(text[1..].to_owned())
@@ -65,7 +65,7 @@ impl TryFrom<&str> for Command {
             let params: Vec<&str> = message.split(' ').skip(1).collect();
 
             if params.len() < 2 {
-                return Err("To send emojis to someone follow the format `/send <EMOJI> <QUANTITY?> <TARGET_USERNAME>` like `/send 3 😍 @coolusername` where the quantity parameter is optional");
+                return Err("To send emojis to someone follow the format `/send QUANTITY EMOJI USERNAME` like `/send 3 😍 @coolusername`. The quantity is optional.");
             }
 
             let emoji;
@@ -76,14 +76,14 @@ impl TryFrom<&str> for Command {
                 emoji = params[1].to_string();
                 params[0]
                     .parse()
-                    .map_err(|_| "The quantity parameter should be a natural number")?
+                    .map_err(|_| "The quantity parameter should be a integer number, for example: 3")?
             };
             let username = parse_username(params.last().unwrap())?;
 
             return Ok(Self::Send(emoji, quantity, username));
         }
 
-        Err("Command not found")
+        Err("Command not found. Type or press / to see all available commands.")
     }
 }
 
@@ -150,7 +150,7 @@ impl Command {
         // TODO:
         // 1. only remove quantity from origin if the target user exists
         let mut quantity_from = match user_from.entry(emoji.to_owned()) {
-            IndexMapEntry::Vacant(_) => return Err(format!("You don't have {} to send", emoji)),
+            IndexMapEntry::Vacant(_) => return Err(format!("You don't have any {} to send", emoji)),
             IndexMapEntry::Occupied(ref entry) if (*entry.get()) < quantity => {
                 return Err(format!("You don't have enough {} to send", emoji))
             }
@@ -164,7 +164,7 @@ impl Command {
         }
 
         let mut user_to = match lock.entry(to.into()) {
-            HashMapEntry::Vacant(_) => return Err(format!("Could not find user @{}. Make sure the user has already contacted the bot at least once", to)),
+            HashMapEntry::Vacant(_) => return Err(format!("Could not find user @{}. Make sure the user has contacted @EmojiAlbumBot at least once", to)),
             HashMapEntry::Occupied(user_to) => {
                 user_to
             },
@@ -235,7 +235,7 @@ fn handle_command(message: &Message, text: &str) -> ReplyMsg {
         Ok(command) => {
             let msg_username = match message.from.username.as_ref() {
                 Some(msg_username) => msg_username.to_owned(),
-                None => return format_error("To play this game you need a username"),
+                None => return format_error("You must register an username in your Telegram in order to use this bot. Set a username in your telegram app settings."),
             };
 
             match command.execute(msg_username) {
