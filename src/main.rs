@@ -188,6 +188,11 @@ fn render_emoji_album(emojis_map: &IndexMap<Emoji, Quantity>) -> String {
         .collect()
 }
 
+async fn send_message(api: &Api, message: &Message, text: String) -> Result<(), Error> {
+    api.send(message.chat.text(text)).await?;
+    Ok(())
+}
+
 async fn handle_message(api: &Api, message: &Message) -> Result<(), Error> {
     if let MessageKind::Text { ref data, .. } = message.kind {
         println!("<{:?}>: {}", &message.from.username, data);
@@ -205,7 +210,7 @@ async fn handle_message(api: &Api, message: &Message) -> Result<(), Error> {
             Err(error_msg) => error_msg.to_owned(),
         };
 
-        api.send(message.chat.text(reply_msg)).await?;
+        send_message(api, message, reply_msg).await?;
     };
 
     Ok(())
