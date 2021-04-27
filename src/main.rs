@@ -110,7 +110,7 @@ impl Command {
                 ))
             }
             None => {
-                Err("You still have no emojis in your album! Type /roll to get some!".to_string())
+                Ok("You still have no emojis in your album! Type /roll to get some!".to_string())
             }
         }
     }
@@ -193,18 +193,24 @@ async fn send_message(api: &Api, message: &Message, text: String) -> Result<(), 
     Ok(())
 }
 
+fn format_error(message: &str) -> String {
+    format!("Error: {}", message)
+}
+
 fn handle_command(message: &Message, text: &str) -> ReplyMsg {
     match Command::try_from(text) {
         Ok(command) => {
-            // TODO: handle account without username -> send error msg
-            let msg_username = message.from.username.as_ref().unwrap().to_owned();
+            let msg_username = match message.from.username.as_ref() {
+                Some(msg_username) => msg_username.to_owned(),
+                None => return format_error("To play this game you need a username"),
+            };
 
             match command.execute(msg_username) {
                 Ok(reply_msg) => reply_msg,
-                Err(reply_msg) => reply_msg,
+                Err(reply_msg) => format_error(&reply_msg),
             }
         }
-        Err(error_msg) => error_msg.to_owned(),
+        Err(error_msg) => format_error(error_msg),
     }
 }
 
