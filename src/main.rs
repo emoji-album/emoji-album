@@ -11,7 +11,7 @@ use std::string::ToString;
 use std::sync::{Arc, Mutex};
 
 use futures::StreamExt;
-use telegram_bot::{Api, CanSendMessage, Error, Message, MessageKind, UpdateKind};
+use telegram_bot::{Api, CanSendMessage, Error, Message, MessageKind, Update, UpdateKind};
 
 type Username = String;
 type Emoji = String;
@@ -233,6 +233,14 @@ async fn handle_message(api: &Api, message: &Message) -> Result<(), Error> {
     Ok(())
 }
 
+async fn handle_update(update: Result<Update, Error>, api: &Api) -> Result<(), Error> {
+    if let UpdateKind::Message(message) = update?.kind {
+        handle_message(api, &message).await?;
+    }
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     dotenv().ok();
@@ -244,13 +252,7 @@ async fn main() -> Result<(), Error> {
     let mut stream = api.stream();
 
     while let Some(update) = stream.next().await {
-        // TODO: ignore errors
-        let update = update?;
-
-        if let UpdateKind::Message(message) = update.kind {
-            // TODO: ignore errors
-            handle_message(&api, &message).await?;
-        }
+        let _ = handle_update(update, &api).await;
     }
 
     Ok(())
