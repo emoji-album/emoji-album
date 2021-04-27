@@ -67,20 +67,15 @@ impl TryFrom<&str> for Command {
 
 impl Command {
     async fn execute(self, api: &Api, message: &Message) -> Result<(), Error> {
+        let msg_username = message.from.username.as_ref().unwrap().to_owned();
+
         match self {
             Command::Start => self.start(api, message).await,
-            Command::Roll => self.roll(api, message).await,
-            Command::Album => self.album(api, message).await,
+            Command::Roll => self.roll(api, message, msg_username).await,
+            Command::Album => self.album(api, message, msg_username).await,
             Command::Send(ref emoji, quantity, ref username) => {
-                self.send(
-                    api,
-                    message,
-                    emoji,
-                    quantity,
-                    &message.from.username.as_ref().unwrap(),
-                    username,
-                )
-                .await
+                self.send(api, message, emoji, quantity, &msg_username, username)
+                    .await
             }
         }?;
 
@@ -96,10 +91,8 @@ impl Command {
         Ok(())
     }
 
-    async fn roll(&self, api: &Api, message: &Message) -> Result<(), Error> {
+    async fn roll(&self, api: &Api, message: &Message, username: Username) -> Result<(), Error> {
         let rolled_emojis = generate_random_emojis();
-
-        let username = message.from.username.as_ref().unwrap().to_owned();
 
         add_emojis_to_album(username, &rolled_emojis);
 
@@ -116,10 +109,10 @@ impl Command {
         Ok(())
     }
 
-    async fn album(&self, api: &Api, message: &Message) -> Result<(), Error> {
+    async fn album(&self, api: &Api, message: &Message, username: Username) -> Result<(), Error> {
         let lock = USERS_EMOJIS.lock().unwrap();
 
-        match lock.get(&message.from.username.as_ref().unwrap().to_string()) {
+        match lock.get(&username) {
             Some(emojis_map) => {
                 let emoji_album = render_emoji_album(emojis_map);
 
