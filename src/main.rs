@@ -1,8 +1,10 @@
 use dotenv::dotenv;
 use indexmap::{map::Entry as IndexMapEntry, IndexMap};
+use itertools::Itertools;
 use rand::rngs::StdRng;
 use rand::seq::IteratorRandom;
 use rand::FromEntropy;
+use std::cmp::Ordering;
 use std::collections::hash_map::Entry as HashMapEntry;
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -14,16 +16,43 @@ use std::sync::{Arc, Mutex};
 use futures::StreamExt;
 use telegram_bot::{Api, CanSendMessage, Error, Message, MessageKind, Update, UpdateKind};
 
+#[derive(Hash, PartialEq, Eq, Clone)]
+struct EmojiRow {
+    icon: Emoji,
+    collection: String,
+    index: usize,
+}
+
+impl Ord for EmojiRow {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.index.cmp(&other.index)
+    }
+}
+
+impl PartialOrd for EmojiRow {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 type Username = String;
 type Emoji = String;
 type Quantity = usize;
 type ReplyMsg = String;
 
 lazy_static::lazy_static! {
-    static ref USERS_EMOJIS: Arc<Mutex<HashMap<Username, IndexMap<Emoji, Quantity>>>> = Arc::new(Mutex::new(HashMap::new()));
+    static ref USERS_EMOJIS: Arc<Mutex<HashMap<Username, IndexMap<EmojiRow, Quantity>>>> = Arc::new(Mutex::new(HashMap::new()));
 
     static ref EMOJI_FILE: String = fs::read_to_string("emojis.csv").unwrap();
-    static ref EMOJIS: Vec<&'static str> = EMOJI_FILE.trim().split('\n').collect();
+    static ref EMOJI_TABLE: Vec<EmojiRow> = EMOJI_FILE.trim().split('\n').enumerate().map(|(i, text_row)| {
+        let row_vec: Vec<&str> = text_row.split(',').collect();
+
+        EmojiRow {
+            icon: row_vec[0].to_owned(),
+            collection: row_vec[1].to_owned(),
+            index: i,
+        }
+    }).collect();
 }
 
 fn parse_username(text: &str) -> Result<String, &'static str> {
@@ -74,9 +103,9 @@ impl TryFrom<&str> for Command {
                 1
             } else {
                 emoji = params[1].to_string();
-                params[0]
-                    .parse()
-                    .map_err(|_| "The quantity parameter should be a integer number, for example: 3")?
+                params[0].parse().map_err(|_| {
+                    "The quantity parameter should be a integer number, for example: 3"
+                })?
             };
             let username = parse_username(params.last().unwrap())?;
 
@@ -112,7 +141,15 @@ impl Command {
             "You have rolled:\n\n{}\n\nSend /album to see all your emojis!",
             rolled_emojis
                 .into_iter()
-                .rev()
+                .group_by(|emoji_row| emoji_row.collection.clone())
+                .into_iter()
+                .map(|(collection, group)| {
+                    format!(
+                        "{} Collection\n{}\n\n",
+                        collection,
+                        group.map(|emoji| emoji.icon.clone()).join(" ")
+                    )
+                })
                 .collect::<Vec<String>>()
                 .join(" ")
         ))
@@ -149,8 +186,21 @@ impl Command {
 
         // TODO:
         // 1. only remove quantity from origin if the target user exists
-        let mut quantity_from = match user_from.entry(emoji.to_owned()) {
-            IndexMapEntry::Vacant(_) => return Err(format!("You don't have any {} to send", emoji)),
+
+        let related_emoji_row = EMOJI_TABLE
+            .iter()
+            .find(|EmojiRow { icon, .. }| icon == emoji)
+            .unwrap();
+
+        let emoji_row = EmojiRow {
+            icon: emoji.to_owned(),
+            collection: related_emoji_row.collection.clone(),
+            index: related_emoji_row.index,
+        };
+        let mut quantity_from = match user_from.entry(emoji_row) {
+            IndexMapEntry::Vacant(_) => {
+                return Err(format!("You don't have any {} to send", emoji))
+            }
             IndexMapEntry::Occupied(ref entry) if (*entry.get()) < quantity => {
                 return Err(format!("You don't have enough {} to send", emoji))
             }
@@ -170,10 +220,17 @@ impl Command {
             },
         };
 
-        user_to
-            .get_mut()
-            .entry(emoji.to_owned())
-            .or_insert(quantity);
+        let related_emoji_row = EMOJI_TABLE
+            .iter()
+            .find(|EmojiRow { icon, .. }| icon == emoji)
+            .unwrap();
+
+        let emoji_row = EmojiRow {
+            icon: emoji.to_owned(),
+            collection: related_emoji_row.collection.clone(),
+            index: related_emoji_row.index,
+        };
+        user_to.get_mut().entry(emoji_row).or_insert(quantity);
 
         Ok(format!(
             "You have successfully sent {} {} to @{}!",
@@ -182,42 +239,49 @@ impl Command {
     }
 }
 
-fn generate_random_emojis() -> Vec<Emoji> {
+fn generate_random_emojis() -> Vec<EmojiRow> {
     let mut rng = StdRng::from_entropy();
 
-    let random_emojis: Vec<String> = EMOJIS
+    let random_emojis: Vec<EmojiRow> = EMOJI_TABLE
         .iter()
         .choose_multiple(&mut rng, 5)
         .into_iter()
-        .map(ToString::to_string)
+        .map(Clone::clone)
         .collect();
 
     random_emojis
 }
 
-fn add_emojis_to_album(album: Username, emojis: &Vec<Emoji>) {
+fn add_emojis_to_album(album: Username, emoji_rows: &Vec<EmojiRow>) {
     let mut lock = USERS_EMOJIS.lock().unwrap();
     let user_emojis = lock.entry(album).or_insert(IndexMap::new());
 
-    for emoji in emojis {
-        let quantity = user_emojis.entry(emoji.to_owned()).or_insert(0);
+    for emoji_row in emoji_rows {
+        let quantity = user_emojis.entry(emoji_row.clone()).or_insert(0);
         (*quantity) += 1;
     }
 }
 
-fn render_emoji_album(emojis_map: &IndexMap<Emoji, Quantity>) -> String {
+fn render_emoji_album(emojis_map: &IndexMap<EmojiRow, Quantity>) -> String {
+    let mut emojis_map = emojis_map.clone();
+    emojis_map.sort_by(|k1, _v1, k2, _v2| k1.cmp(k2));
+
     emojis_map
         .iter()
-        .rev()
-        .map(|(emoji, quantity)| {
-            std::iter::repeat(emoji.to_owned())
-                .take(*quantity)
-                .collect::<String>()
+        .group_by(|(emoji_row, _)| emoji_row.collection.clone())
+        .into_iter()
+        .map(|(collection, group)| {
+            format!(
+                "{} Collection\n{}\n\n",
+                collection,
+                group
+                    .map(|(emoji, quantity)| std::iter::repeat(emoji.icon.clone())
+                        .take(*quantity)
+                        .collect::<String>())
+                    .join(" ")
+            )
         })
-        .map(|mut same_emoji_line| {
-            same_emoji_line.push_str(" ");
-            same_emoji_line
-        })
+        // TODO: separate repeated emojis later
         .collect()
 }
 
