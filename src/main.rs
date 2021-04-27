@@ -25,6 +25,18 @@ lazy_static::lazy_static! {
     static ref EMOJIS: Vec<&'static str> = EMOJI_FILE.trim().split('\n').collect();
 }
 
+fn parse_username(text: &str) -> Result<String, &'static str> {
+    if text.is_empty() {
+        return Err("Username shouldn't be empty");
+    }
+
+    if text.chars().nth(0).unwrap() != '@' {
+        return Err("Username should start with `@`");
+    }
+
+    Ok(text[1..].to_owned())
+}
+
 enum Command {
     Start,
     Roll,
@@ -51,15 +63,16 @@ impl TryFrom<&str> for Command {
         if message.starts_with("/send") {
             let params: Vec<&str> = message.split(' ').skip(1).collect();
 
-            // TODO:
-            // 1. needs error handling on the `@` of the string,
-            // right now it doesn't check, it just removes;
-            // 2. needs to remove hardcoded `1` in Quantity.
-            return Ok(Self::Send(
-                params[0].to_string(),
-                1,
-                params[1][1..].to_string(),
-            ));
+            if params.len() < 2 {
+                return Err("To send emojis to someone follow the format `/send <EMOJI> <TARGET_USERNAME>` like `/send 😍 @coolusername`");
+            }
+
+            let emoji = params[0].to_string();
+            // TODO: needs to remove hardcoded `1` in Quantity.
+            let quantity = 1;
+            let username = parse_username(params[1])?;
+
+            return Ok(Self::Send(emoji, quantity, username));
         }
 
         Err("Command not found")
