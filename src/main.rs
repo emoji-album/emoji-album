@@ -193,22 +193,26 @@ async fn send_message(api: &Api, message: &Message, text: String) -> Result<(), 
     Ok(())
 }
 
+fn handle_command(message: &Message, text: &str) -> ReplyMsg {
+    match Command::try_from(text) {
+        Ok(command) => {
+            // TODO: handle account without username -> send error msg
+            let msg_username = message.from.username.as_ref().unwrap().to_owned();
+
+            match command.execute(msg_username) {
+                Ok(reply_msg) => reply_msg,
+                Err(reply_msg) => reply_msg,
+            }
+        }
+        Err(error_msg) => error_msg.to_owned(),
+    }
+}
+
 async fn handle_message(api: &Api, message: &Message) -> Result<(), Error> {
     if let MessageKind::Text { ref data, .. } = message.kind {
         println!("<{:?}>: {}", &message.from.username, data);
 
-        let reply_msg = match Command::try_from(&data[..]) {
-            Ok(command) => {
-                // TODO: handle account without username -> send error msg
-                let msg_username = message.from.username.as_ref().unwrap().to_owned();
-
-                match command.execute(msg_username) {
-                    Ok(reply_msg) => reply_msg,
-                    Err(reply_msg) => reply_msg,
-                }
-            }
-            Err(error_msg) => error_msg.to_owned(),
-        };
+        let reply_msg = handle_command(&message, &data[..]);
 
         send_message(api, message, reply_msg).await?;
     };
