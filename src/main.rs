@@ -143,7 +143,7 @@ impl Command {
         (*quantity_to) += 1;
 
         Ok(format!(
-            "You have succefuly sent {} {} to @{}!",
+            "You have successfully sent {} {} to @{}!",
             quantity, emoji, to
         ))
     }
