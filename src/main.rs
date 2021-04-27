@@ -1,8 +1,9 @@
 use dotenv::dotenv;
-use indexmap::IndexMap;
+use indexmap::{map::Entry as IndexMapEntry, IndexMap};
 use rand::rngs::StdRng;
 use rand::seq::IteratorRandom;
 use rand::FromEntropy;
+use std::collections::hash_map::Entry as HashMapEntry;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::env;
@@ -140,20 +141,32 @@ impl Command {
         let user_from = lock.entry(from.into()).or_insert(IndexMap::new());
 
         // TODO:
-        // 1. validate if there is some before giving to the other person
-        // 2. also, if it gets to zero, remove key
-        let quantity_from = user_from.entry(emoji.to_owned()).or_insert(1);
+        // 1. only remove quantity from origin if the target user exists
+        let mut quantity_from = match user_from.entry(emoji.to_owned()) {
+            IndexMapEntry::Vacant(_) => return Err(format!("You don't have {} to send", emoji)),
+            IndexMapEntry::Occupied(ref entry) if (*entry.get()) < quantity => {
+                return Err(format!("You don't have enough {} to send", emoji))
+            }
+            IndexMapEntry::Occupied(quantity_from) => quantity_from,
+        };
 
-        (*quantity_from) -= 1;
+        (*quantity_from.get_mut()) -= quantity;
 
-        drop(lock);
+        if *quantity_from.get() == 0 {
+            quantity_from.remove();
+        }
 
-        let mut lock = USERS_EMOJIS.lock().unwrap();
+        let mut user_to = match lock.entry(to.into()) {
+            HashMapEntry::Vacant(_) => return Err(format!("Could not find user @{}. Make sure the user has already contacted the bot at least once", to)),
+            HashMapEntry::Occupied(user_to) => {
+                user_to
+            },
+        };
 
-        let user_to = lock.entry(to.into()).or_insert(IndexMap::new());
-        let quantity_to = user_to.entry(emoji.to_owned()).or_insert(0);
-
-        (*quantity_to) += 1;
+        user_to
+            .get_mut()
+            .entry(emoji.to_owned())
+            .or_insert(quantity);
 
         Ok(format!(
             "You have successfully sent {} {} to @{}!",
