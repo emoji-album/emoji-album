@@ -62,7 +62,7 @@ impl TryFrom<&str> for Command {
             ));
         }
 
-        Err("no match")
+        Err("Command not found")
     }
 }
 
@@ -110,7 +110,7 @@ impl Command {
                 ))
             }
             None => {
-                Ok("You still have no emojis in your album! Type /roll to get some!".to_string())
+                Err("You still have no emojis in your album! Type /roll to get some!".to_string())
             }
         }
     }
@@ -192,17 +192,20 @@ async fn handle_message(api: &Api, message: &Message) -> Result<(), Error> {
     if let MessageKind::Text { ref data, .. } = message.kind {
         println!("<{:?}>: {}", &message.from.username, data);
 
-        match Command::try_from(&data[..]) {
+        let reply_msg = match Command::try_from(&data[..]) {
             Ok(command) => {
                 // TODO: handle account without username -> send error msg
                 let msg_username = message.from.username.as_ref().unwrap().to_owned();
 
-                let reply_msg = command.execute(msg_username).unwrap();
-
-                api.send(message.chat.text(reply_msg)).await?;
+                match command.execute(msg_username) {
+                    Ok(reply_msg) => reply_msg,
+                    Err(reply_msg) => reply_msg,
+                }
             }
-            Err(error_msg) => println!("{}", error_msg),
-        }
+            Err(error_msg) => error_msg.to_owned(),
+        };
+
+        api.send(message.chat.text(reply_msg)).await?;
     };
 
     Ok(())
