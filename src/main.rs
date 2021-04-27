@@ -65,13 +65,20 @@ impl TryFrom<&str> for Command {
             let params: Vec<&str> = message.split(' ').skip(1).collect();
 
             if params.len() < 2 {
-                return Err("To send emojis to someone follow the format `/send <EMOJI> <TARGET_USERNAME>` like `/send 😍 @coolusername`");
+                return Err("To send emojis to someone follow the format `/send <EMOJI> <QUANTITY?> <TARGET_USERNAME>` like `/send 3 😍 @coolusername` where the quantity parameter is optional");
             }
 
-            let emoji = params[0].to_string();
-            // TODO: needs to remove hardcoded `1` in Quantity.
-            let quantity = 1;
-            let username = parse_username(params[1])?;
+            let emoji;
+            let quantity = if params.len() == 2 {
+                emoji = params[0].to_string();
+                1
+            } else {
+                emoji = params[1].to_string();
+                params[0]
+                    .parse()
+                    .map_err(|_| "The quantity parameter should be a natural number")?
+            };
+            let username = parse_username(params.last().unwrap())?;
 
             return Ok(Self::Send(emoji, quantity, username));
         }
