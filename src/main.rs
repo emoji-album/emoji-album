@@ -16,6 +16,7 @@ use telegram_bot::{Api, CanSendMessage, Error, Message, MessageKind, Update, Upd
 type Username = String;
 type Emoji = String;
 type Quantity = usize;
+type ReplyMsg = String;
 
 lazy_static::lazy_static! {
     static ref USERS_EMOJIS: Arc<Mutex<HashMap<Username, IndexMap<Emoji, Quantity>>>> = Arc::new(Mutex::new(HashMap::new()));
@@ -66,84 +67,61 @@ impl TryFrom<&str> for Command {
 }
 
 impl Command {
-    async fn execute(self, api: &Api, message: &Message) -> Result<(), Error> {
-        let msg_username = message.from.username.as_ref().unwrap().to_owned();
-
+    fn execute(self, msg_username: Username) -> Result<ReplyMsg, ReplyMsg> {
         match self {
-            Command::Start => self.start(api, message).await,
-            Command::Roll => self.roll(api, message, msg_username).await,
-            Command::Album => self.album(api, message, msg_username).await,
+            Command::Start => self.start(),
+            Command::Roll => self.roll(msg_username),
+            Command::Album => self.album(msg_username),
             Command::Send(ref emoji, quantity, ref username) => {
-                self.send(api, message, emoji, quantity, &msg_username, username)
-                    .await
+                self.send(emoji, quantity, &msg_username, username)
             }
-        }?;
-
-        Ok(())
+        }
     }
 
-    async fn start(&self, api: &Api, message: &Message) -> Result<(), Error> {
-        api.send(message.chat.text(
-                "Welcome to emoji album!\n\n🎲 Send /roll to get your first emojis!\n\n📖 Send /album to see all your emojis!"
-            ))
-        .await?;
-
-        Ok(())
+    fn start(&self) -> Result<ReplyMsg, ReplyMsg> {
+        Ok("Welcome to emoji album!\n\n🎲 Send /roll to get your first emojis!\n\n📖 Send /album to see all your emojis!".to_string())
     }
 
-    async fn roll(&self, api: &Api, message: &Message, username: Username) -> Result<(), Error> {
+    fn roll(&self, username: Username) -> Result<ReplyMsg, ReplyMsg> {
         let rolled_emojis = generate_random_emojis();
 
         add_emojis_to_album(username, &rolled_emojis);
 
-        api.send(message.chat.text(format!(
-                "You have rolled:\n\n{}\n\nSend /album to see all your emojis!",
-                rolled_emojis
-                    .into_iter()
-                    .rev()
-                    .collect::<Vec<String>>()
-                    .join(" ")
-            )))
-        .await?;
-
-        Ok(())
+        Ok(format!(
+            "You have rolled:\n\n{}\n\nSend /album to see all your emojis!",
+            rolled_emojis
+                .into_iter()
+                .rev()
+                .collect::<Vec<String>>()
+                .join(" ")
+        ))
     }
 
-    async fn album(&self, api: &Api, message: &Message, username: Username) -> Result<(), Error> {
+    fn album(&self, username: Username) -> Result<ReplyMsg, ReplyMsg> {
         let lock = USERS_EMOJIS.lock().unwrap();
 
         match lock.get(&username) {
             Some(emojis_map) => {
                 let emoji_album = render_emoji_album(emojis_map);
 
-                api.send(message.chat.text(format!(
+                Ok(format!(
                     "Your album:\n\n{}\n\nSend /roll to get more emojis",
                     emoji_album
-                )))
-                .await?;
+                ))
             }
             None => {
-                api.send(
-                    message
-                        .chat
-                        .text("You still have no emojis in your album! Type /roll to get some!"),
-                )
-                .await?;
+                Ok("You still have no emojis in your album! Type /roll to get some!".to_string())
             }
-        };
-
-        Ok(())
+        }
     }
 
-    async fn send(
+    fn send(
         &self,
-        api: &Api,
-        message: &Message,
         emoji: &Emoji,
         quantity: Quantity,
         from: &Username,
         to: &Username,
-    ) -> Result<(), Error> {
+    ) -> Result<ReplyMsg, ReplyMsg> {
         let mut lock = USERS_EMOJIS.lock().unwrap();
 
         let user_from = lock.entry(from.into()).or_insert(IndexMap::new());
@@ -164,13 +142,10 @@ impl Command {
 
         (*quantity_to) += 1;
 
-        api.send(message.chat.text(format!(
+        Ok(format!(
             "You have succefuly sent {} {} to @{}!",
             quantity, emoji, to
-        )))
-        .await?;
-
-        Ok(())
+        ))
     }
 }
 
@@ -218,7 +193,14 @@ async fn handle_message(api: &Api, message: &Message) -> Result<(), Error> {
         println!("<{:?}>: {}", &message.from.username, data);
 
         match Command::try_from(&data[..]) {
-            Ok(command) => command.execute(&api, message).await?,
+            Ok(command) => {
+                // TODO: handle account without username -> send error msg
+                let msg_username = message.from.username.as_ref().unwrap().to_owned();
+
+                let reply_msg = command.execute(msg_username).unwrap();
+
+                api.send(message.chat.text(reply_msg)).await?;
+            }
             Err(error_msg) => println!("{}", error_msg),
         }
     };
