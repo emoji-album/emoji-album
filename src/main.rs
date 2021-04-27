@@ -65,7 +65,7 @@ impl TryFrom<&str> for Command {
             let params: Vec<&str> = message.split(' ').skip(1).collect();
 
             if params.len() < 2 {
-                return Err("To send emojis to someone follow the format `/send QUANTITY EMOJI USERNAME` like `/send 3 😍 @coolusername`. The quantity is optional.");
+                return Err("To send emojis to someone follow the format `/send QUANTITY EMOJI @USERNAME` like `/send 3 😍 @coolusername`. The quantity is optional.");
             }
 
             let emoji;
