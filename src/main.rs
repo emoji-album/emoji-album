@@ -138,7 +138,7 @@ impl Command {
         add_emojis_to_album(username, &rolled_emojis);
 
         Ok(format!(
-            "You have rolled:\n\n{}\n\nSend /album to see all your emojis!",
+            "You have rolled:\n\n\n{}\n\nSend /album to see all your emojis!",
             rolled_emojis
                 .into_iter()
                 .group_by(|emoji_row| emoji_row.collection.clone())
@@ -163,7 +163,7 @@ impl Command {
                 let emoji_album = render_emoji_album(emojis_map);
 
                 Ok(format!(
-                    "Your album:\n\n{}\n\nSend /roll to get more emojis",
+                    "Your album:\n\n\n{}\n\nSend /roll to get more emojis",
                     emoji_album
                 ))
             }
