@@ -306,10 +306,10 @@ fn format_error(message: &str) -> String {
     format!("Error: {}", message)
 }
 
-fn handle_command(message: &Message, text: &str) -> ReplyMsg {
+fn handle_command(username: Option<&String>, text: &str) -> ReplyMsg {
     match Command::try_from(text) {
         Ok(command) => {
-            let msg_username = match message.from.username.as_ref() {
+            let msg_username = match username {
                 Some(msg_username) => msg_username.to_owned(),
                 None => return format_error("You must register an username in your Telegram in order to use this bot. Set a username in your telegram app settings."),
             };
@@ -325,9 +325,11 @@ fn handle_command(message: &Message, text: &str) -> ReplyMsg {
 
 async fn handle_message(api: &Api, message: &Message) -> Result<(), Error> {
     if let MessageKind::Text { ref data, .. } = message.kind {
-        println!("<{:?}>: {}", &message.from.username, data);
+        let maybe_username = message.from.username.as_ref();
 
-        let reply_msg = handle_command(&message, &data[..]);
+        println!("<{:?}>: {}", maybe_username, data);
+
+        let reply_msg = handle_command(maybe_username, &data[..]);
 
         send_message(api, message, reply_msg).await?;
     };
