@@ -60,11 +60,11 @@ fn parse_username(text: &str) -> Result<String, &'static str> {
         return Err("/send username cannot be empty. To send emojis to someone follow the format: `/send QUANTITY EMOJI @USERNAME`");
     }
 
-    if text.chars().nth(0).unwrap() != '@' {
-        return Err("/send username must start with @. To send emojis to someone follow the format: `/send QUANTITY EMOJI @USERNAME`");
+    if text.chars().nth(0).unwrap() == '@' {
+        return Ok(text[1..].to_owned());
     }
 
-    Ok(text[1..].to_owned())
+    Ok(text.to_owned())
 }
 
 enum Command {
