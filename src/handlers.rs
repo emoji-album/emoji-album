@@ -1,7 +1,10 @@
-use crate::presenters::format_error;
 use crate::telegram::send_message;
 use crate::types::{Command, ReplyMsg};
 use telegram_bot::{Api, Error, Message, MessageKind, Update, UpdateKind};
+
+fn format_error(message: &str) -> String {
+    format!("Error: {}", message)
+}
 
 fn handle_command(username: Option<&String>, text: &str) -> Result<ReplyMsg, ReplyMsg> {
     let command = Command::parse(text)?;
