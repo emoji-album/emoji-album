@@ -1,5 +1,5 @@
 use dotenv::dotenv;
-use emoji_album::handle_update;
+use emoji_album::handlers::handle_update;
 use futures::StreamExt;
 use std::env;
 use telegram_bot::Api;
