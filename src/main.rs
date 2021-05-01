@@ -78,15 +78,15 @@ impl TryFrom<&str> for Command {
     type Error = &'static str;
 
     fn try_from(message: &str) -> Result<Self, Self::Error> {
-        if message.starts_with("/start") {
+        if message == "/start" {
             return Ok(Self::Start);
         }
 
-        if message.starts_with("/roll") {
+        if message == "/roll" {
             return Ok(Self::Roll);
         }
 
-        if message.starts_with("/album") {
+        if message == "/album" {
             return Ok(Self::Album);
         }
 
