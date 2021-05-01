@@ -1,3 +1,4 @@
+use crate::database::DatabaseState;
 use crate::types::{Command, Emoji, EmojiRow, Quantity, ReplyMsg, Username};
 use indexmap::{map::Entry as IndexMapEntry, IndexMap};
 use itertools::Itertools;
@@ -26,7 +27,11 @@ lazy_static::lazy_static! {
 }
 
 impl Command {
-    pub fn execute(self, msg_username: Username) -> Result<ReplyMsg, ReplyMsg> {
+    pub fn execute(
+        self,
+        _database_state: DatabaseState,
+        msg_username: Username,
+    ) -> Result<ReplyMsg, ReplyMsg> {
         match self {
             Command::Start => self.start(),
             Command::Roll => self.roll(msg_username),

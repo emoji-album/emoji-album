@@ -1,3 +1,4 @@
+use crate::database;
 use crate::telegram::send_message;
 use crate::types::{Command, ReplyMsg};
 use telegram_bot::{Api, Error, Message, MessageKind, Update, UpdateKind};
@@ -11,7 +12,9 @@ fn handle_command(username: Option<&String>, text: &str) -> Result<ReplyMsg, Rep
 
     let msg_username = username.ok_or_else(|| "You must register an username in your Telegram in order to use this bot. Set a username in your telegram app settings.")?.to_owned();
 
-    command.execute(msg_username)
+    let database_state = database::fetch(&command)?;
+
+    command.execute(database_state, msg_username)
 }
 
 async fn handle_message(api: &Api, message: &Message) -> Result<(), Error> {
