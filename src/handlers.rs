@@ -1,11 +1,10 @@
 use crate::presenters::format_error;
 use crate::telegram::send_message;
 use crate::types::{Command, ReplyMsg};
-use std::convert::TryFrom;
 use telegram_bot::{Api, Error, Message, MessageKind, Update, UpdateKind};
 
 fn handle_command(username: Option<&String>, text: &str) -> Result<ReplyMsg, ReplyMsg> {
-    let command = Command::try_from(text)?;
+    let command = Command::parse(text)?;
 
     let msg_username = username.ok_or_else(|| "You must register an username in your Telegram in order to use this bot. Set a username in your telegram app settings.")?.to_owned();
 
