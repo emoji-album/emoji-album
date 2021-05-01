@@ -78,15 +78,27 @@ impl TryFrom<&str> for Command {
     type Error = &'static str;
 
     fn try_from(message: &str) -> Result<Self, Self::Error> {
-        if message == "/start" {
+        if message.starts_with("/start") {
+            if message != "/start" {
+                return Err("/start command accepts no arguments");
+            }
+
             return Ok(Self::Start);
         }
 
-        if message == "/roll" {
+        if message.starts_with("/roll") {
+            if message != "/roll" {
+                return Err("/roll command accepts no arguments");
+            }
+
             return Ok(Self::Roll);
         }
 
-        if message == "/album" {
+        if message.starts_with("/album") {
+            if message != "/album" {
+                return Err("/album command accepts no arguments");
+            }
+
             return Ok(Self::Album);
         }
 
