@@ -1,5 +1,6 @@
 use dotenv::dotenv;
 use emoji_album::handlers::handle_update;
+use emoji_album::storage::in_memory::InMemoryStorage;
 use futures::StreamExt;
 use std::env;
 use telegram_bot::Api;
@@ -14,7 +15,9 @@ async fn main() {
 
     let mut stream = api.stream();
 
+    let in_memory_storage = InMemoryStorage::new();
+
     while let Some(update) = stream.next().await {
-        let _ = handle_update(update, &api).await;
+        let _ = handle_update(update, &api, &in_memory_storage).await;
     }
 }

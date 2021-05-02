@@ -1,8 +1,11 @@
-use crate::types::{Command, ReplyMsg};
+use crate::types::{Command, Username};
+use crate::storage::Storage;
 
-pub fn fetch(command: &Command) -> Result<DatabaseState, ReplyMsg> {
+pub fn fetch(storage: &dyn Storage, command: &Command) -> Result<DatabaseState, DatabaseError> {
     let state = match command {
-        Command::Start => DatabaseState::Start,
+        Command::Start => DatabaseState::Start{
+            user: fetch_user(storage, username)?,
+        },
         Command::Roll => DatabaseState::Roll,
         Command::Album => DatabaseState::Album,
         Command::Send(_, _, _) => DatabaseState::Send,
@@ -11,9 +14,20 @@ pub fn fetch(command: &Command) -> Result<DatabaseState, ReplyMsg> {
     Ok(state)
 }
 
+fn fetch_user(storage: &dyn Storage) -> Result<User, DatabaseError> {
+    let user = storage.
+}
+
 pub enum DatabaseState {
-    Start,
+    Start{ user: User },
     Roll,
     Album,
     Send,
 }
+
+pub struct User {
+    username: Username,
+}
+
+#[derive(Debug)]
+pub struct DatabaseError;

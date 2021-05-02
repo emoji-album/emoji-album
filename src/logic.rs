@@ -43,12 +43,16 @@ impl Command {
     }
 
     fn start(&self) -> Result<ReplyMsg, ReplyMsg> {
+        // fetch: get user
+        // mutation: insert user if not exists
         Ok("Welcome to emoji album!\n\n🎲 Send /roll to get your first emojis!\n\n📖 Send /album to see all your emojis!".to_string())
     }
 
     fn roll(&self, username: Username) -> Result<ReplyMsg, ReplyMsg> {
+        // fetch: none
         let rolled_emojis = generate_random_emojis();
 
+        // mutation: add emojis to an user's album
         add_emojis_to_album(username, &rolled_emojis);
 
         Ok(format!(
@@ -70,6 +74,8 @@ impl Command {
     }
 
     fn album(&self, username: Username) -> Result<ReplyMsg, ReplyMsg> {
+        // fetch: user's album
+        // mutation: none
         let lock = USERS_EMOJIS.lock().unwrap();
 
         match lock.get(&username) {
@@ -95,7 +101,13 @@ impl Command {
         to: &Username,
     ) -> Result<ReplyMsg, ReplyMsg> {
         let mut lock = USERS_EMOJIS.lock().unwrap();
+        // fetch:
+        // 1. user's album
+        // 2. second user
 
+        // mutation:
+        // 1. remove quantity from user's album
+        // 2. add quantity from target user's album
         let user_from = lock.entry(from.into()).or_insert(IndexMap::new());
 
         // TODO:
