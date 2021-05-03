@@ -7,7 +7,6 @@ use rand::FromEntropy;
 use std::collections::hash_map::Entry as HashMapEntry;
 use std::collections::HashMap;
 use std::fs;
-use std::string::ToString;
 use std::sync::{Arc, Mutex};
 
 lazy_static::lazy_static! {
@@ -26,7 +25,7 @@ lazy_static::lazy_static! {
 }
 
 impl Command {
-    pub fn execute(self, msg_username: Username) -> Result<ReplyMsg, ReplyMsg> {
+    pub fn execute(self, msg_username: Username) -> Result<ReplyMsg, String> {
         match self {
             Command::Start => self.start(),
             Command::Roll => self.roll(msg_username),
@@ -37,17 +36,17 @@ impl Command {
         }
     }
 
-    fn start(&self) -> Result<ReplyMsg, ReplyMsg> {
-        Ok("Welcome to emoji album!\n\n🎲 Send /roll to get your first emojis!\n\n📖 Send /album to see all your emojis!".to_string())
+    fn start(&self) -> Result<ReplyMsg, String> {
+        Ok("Welcome to emoji album!\n\n🎲 Send /roll to get your first emojis!\n\n📖 Send /album to see all your emojis!".into())
     }
 
-    fn roll(&self, username: Username) -> Result<ReplyMsg, ReplyMsg> {
+    fn roll(&self, username: Username) -> Result<ReplyMsg, String> {
         let rolled_emojis = generate_random_emojis();
 
         add_emojis_to_album(username, &rolled_emojis);
 
         Ok(format!(
-            "You have rolled:\n\n\n{}\n\nSend /album to see all your emojis!",
+            "You have rolled:\n\n\n{}",
             rolled_emojis
                 .into_iter()
                 .group_by(|emoji_row| emoji_row.collection.clone())
@@ -61,24 +60,20 @@ impl Command {
                 })
                 .collect::<Vec<String>>()
                 .join(" ")
-        ))
+        )
+        .into())
     }
 
-    fn album(&self, username: Username) -> Result<ReplyMsg, ReplyMsg> {
+    fn album(&self, username: Username) -> Result<ReplyMsg, String> {
         let lock = USERS_EMOJIS.lock().unwrap();
 
         match lock.get(&username) {
             Some(emojis_map) => {
                 let emoji_album = render_emoji_album(emojis_map);
 
-                Ok(format!(
-                    "Your album:\n\n\n{}\n\nSend /roll to get more emojis",
-                    emoji_album
-                ))
+                Ok(format!("Your album:\n\n\n{}", emoji_album).into())
             }
-            None => {
-                Ok("You still have no emojis in your album! Type /roll to get some!".to_string())
-            }
+            None => Ok("You still have no emojis in your album! Type /roll to get some!".into()),
         }
     }
 
@@ -88,7 +83,7 @@ impl Command {
         quantity: Quantity,
         from: &Username,
         to: &Username,
-    ) -> Result<ReplyMsg, ReplyMsg> {
+    ) -> Result<ReplyMsg, String> {
         let mut lock = USERS_EMOJIS.lock().unwrap();
 
         let user_from = lock.entry(from.into()).or_insert(IndexMap::new());
@@ -144,7 +139,8 @@ impl Command {
         Ok(format!(
             "You have successfully sent {} {} to @{}!",
             quantity, emoji, to
-        ))
+        )
+        .into())
     }
 }
 

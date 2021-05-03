@@ -6,7 +6,7 @@ fn format_error(message: &str) -> String {
     format!("Error: {}", message)
 }
 
-fn handle_command(username: Option<&String>, text: &str) -> Result<ReplyMsg, ReplyMsg> {
+fn handle_command(username: Option<&String>, text: &str) -> Result<ReplyMsg, String> {
     let command = Command::parse(text)?;
 
     let msg_username = username.ok_or_else(|| "You must register an username in your Telegram in order to use this bot. Set a username in your telegram app settings.")?.to_owned();
@@ -20,12 +20,13 @@ async fn handle_message(api: &Api, message: &Message) -> Result<(), Error> {
 
         println!("<{:?}>: {}", maybe_username, data);
 
-        let reply_msg = match handle_command(maybe_username, &data[..]) {
-            Ok(success_reply_msg) => success_reply_msg,
-            Err(error_reply_msg) => format_error(&error_reply_msg),
-        };
-
-        send_message(api, message, reply_msg).await?;
+        match handle_command(maybe_username, &data[..]) {
+            Ok(success_reply_msg) => send_message(api, message, success_reply_msg),
+            Err(error_reply_msg) => {
+                send_message(api, message, format_error(&error_reply_msg).into())
+            }
+        }
+        .await?;
     };
 
     Ok(())
