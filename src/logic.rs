@@ -94,7 +94,9 @@ impl Command {
         let related_emoji_row = EMOJI_TABLE
             .iter()
             .find(|EmojiRow { icon, .. }| icon == emoji)
-            .unwrap();
+            .ok_or_else(|| {
+                "Emoji not valid, or there's a space missing between the emoji and the username"
+            })?;
 
         let emoji_row = EmojiRow {
             icon: emoji.to_owned(),
