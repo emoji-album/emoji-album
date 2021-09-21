@@ -3,32 +3,7 @@ use std::cmp::Ordering;
 pub type Username = String;
 pub type Emoji = String;
 pub type Quantity = usize;
-
-pub struct ReplyMsg {
-    pub text: String,
-    pub buttons: Vec<String>,
-}
-
-impl ReplyMsg {
-    fn new(text: &str) -> Self {
-        Self {
-            text: text.to_owned(),
-            buttons: vec![],
-        }
-    }
-}
-
-impl From<String> for ReplyMsg {
-    fn from(text: String) -> Self {
-        Self::new(&text)
-    }
-}
-
-impl From<&str> for ReplyMsg {
-    fn from(text: &str) -> Self {
-        Self::new(text)
-    }
-}
+pub type ReplyMsg = String;
 
 pub enum Command {
     Start,
