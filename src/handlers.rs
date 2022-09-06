@@ -1,19 +1,23 @@
 use crate::database;
+use crate::storage::Storage;
 use crate::telegram::send_message;
 use crate::types::{Command, ReplyMsg};
-use crate::storage::Storage;
 use telegram_bot::{Api, Error, Message, MessageKind, Update, UpdateKind};
 
 fn format_error(message: &str) -> String {
     format!("Error: {}", message)
 }
 
-fn handle_command(storage: &dyn Storage, username: Option<&String>, text: &str) -> Result<ReplyMsg, ReplyMsg> {
+fn handle_command(
+    storage: &dyn Storage,
+    username: Option<&String>,
+    text: &str,
+) -> Result<ReplyMsg, ReplyMsg> {
     let command = Command::parse(text)?;
 
     let msg_username = username.ok_or_else(|| "You must register an username in your Telegram in order to use this bot. Set a username in your telegram app settings.")?.to_owned();
 
-    let database_state = database::fetch(storage, &command).map_err(|db_error| {
+    let database_state = database::fetch(storage, &command, &msg_username).map_err(|db_error| {
         println!("database error: {:?}", db_error);
         "Internal server error"
     })?;
@@ -38,7 +42,11 @@ async fn handle_message(api: &Api, storage: &dyn Storage, message: &Message) -> 
     Ok(())
 }
 
-pub async fn handle_update(update: Result<Update, Error>, api: &Api, storage: &dyn Storage) -> Result<(), Error> {
+pub async fn handle_update(
+    update: Result<Update, Error>,
+    api: &Api,
+    storage: &dyn Storage,
+) -> Result<(), Error> {
     if let UpdateKind::Message(message) = update?.kind {
         handle_message(api, storage, &message).await?;
     }

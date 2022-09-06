@@ -30,3 +30,7 @@ impl PartialOrd for EmojiRow {
         Some(self.cmp(other))
     }
 }
+
+pub struct User {
+    username: Username,
+}
